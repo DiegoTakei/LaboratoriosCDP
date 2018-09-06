@@ -1,0 +1,160 @@
+---
+title: "Lab 1: Análise de Gastos de Deputados: Nossas Perguntas"
+author: "Diego Takei"
+date: "29 de agosto de 2018"
+output: html_document
+---
+
+Inicialmente iremos carregar os dados e bibliotecas a serem utilizados nesta análise.
+```{r init, message=FALSE, warning=FALSE, paged.print=FALSE}
+library(tidyverse)
+dados <- read.csv("dadosCEAP.csv", encoding = "UTF-8")
+```
+
+### 1 Pergunta: Quais são os deputados que gastaram mais dinheiro da CEAP? Quais são os mais econômicos? 
+Iremos verificar a soma dos gastos realizados por cada deputado. Em seguida, é possível verificar quem mais gastou e quem menos gastou.
+```{r questaoum}
+
+group <-
+  dados %>%
+  group_by(nomeParlamentar) %>%
+  filter(valorLíquido > 0) %>%
+  summarise(soma_gastos = sum(valorLíquido, na.rm = TRUE))
+
+quemMaisGastou <-
+  group %>%
+  arrange(desc(soma_gastos)) %>%
+  slice(1:10)
+
+quemMenosGastou <-
+  group %>%
+  arrange(soma_gastos) %>%
+  slice(1:10)
+  
+ggplot(quemMaisGastou, aes(x = reorder(nomeParlamentar, soma_gastos), y = soma_gastos, fill = -soma_gastos)) + 
+  geom_col(position = position_identity()) + coord_flip() + xlab("Parlamentares") 
+
+ggplot(quemMenosGastou, aes(x = reorder(nomeParlamentar, soma_gastos), y = soma_gastos, fill = -soma_gastos)) + 
+  geom_col(position = position_identity()) + coord_flip() + xlab("Parlamentares")
+
+```  
+
+No primeiro gráfico, temos os deputados que mais gastaram verba da CEAP. **Édio Lopes**, **Rocha**, **Abel Mesquita Júnior** e **Alan Rick**, com gastos superiores a mais de 1 milhão de reais.
+O segundo gráfico por sua vez, exibe os deputados que mais econômicos com relação a CEAP. **Camilo Cola** foi o deputado mais ecônomico, seguido por **Eliseu Padilha** e **Marcio Monteiro**.
+
+### 2 Pergunta: Quais os estados cujos deputados gastam mais no exterior? Quais os estados cujos deputados gastam menos no exterior?
+
+Inicialmente, é necessário filtrar os dados de modo a obter apenas os gastos realizados no exterior (tipoDocumento = 2). Em seguida, é computado a soma desses gastos e agrupados de acordo com a Unidade Federativa (sgUF).
+```{r questaoDois}
+
+groupExterior <-
+  dados %>% filter(tipoDocumento == 2) %>%
+  group_by(sgUF) %>%
+  summarise(soma_gastos = sum(valorLíquido, na.rm = TRUE)) %>%
+  ungroup() %>%
+  arrange(desc(soma_gastos))
+
+ggplot(groupExterior, aes(x = reorder(sgUF, soma_gastos), y = soma_gastos, fill = -soma_gastos)) + 
+  geom_col(position = position_identity()) + coord_flip() + xlab("Unidade Federativa") + ylab("Soma dos gastos realizados no exterior") + labs(fill = "Soma do Gastos") 
+```
+
+A partir do gráfico é possível observar que o estado de São Paulo é nitidamente o estado com maior gasto no exterior entre os parlamentares, com um montante ultrapassando os 100 mil reais. Em seguida estão **Minas Gerais**, **Pernambuco**, **Roraima** e **Ceará** como os estados que mais gastam a verba do CEAP no exterior.
+Na parte mais clara do gráfico estão os estados que menos gastam no exterior. O estado que menos gastou foi o **Maranhão**, com um valor total inferior a 100 reais,o que é no mínimo surpreendente, principalmente se comparado aos estados que mais gastaram. Depois do **Maranhão**, **Paraíba**, **Pará**, **Sergipe** e **Espírito Santo** fecham a lista dos cinco estados que menos usaram a verba do CEAP no exterior.
+
+### 3 Pergunta: Quais os partidos cujos parlamentares mais usam CEAP no estado da Paraíba? Quais são os que menos usam? Mesmas perguntas considerando valores em R$.
+
+Primeiro utilizo um filtro para obter apenas os dados referentes ao estado da Paraíba. Após isso, aplico um novo filtro removendo valores negativos, que podem divergir os dados. Por fim, sumarizo os dados em duas variáveis, uma conta a quantidade utilizações da CEAP por determinado partido, enquanto a segunda realiza o somatório das quantias gastas.
+```{r questaoTres}
+
+groupUsoCEAP <- dados %>% filter(sgUF == "PB") %>%
+  group_by(sgPartido) %>% 
+  filter(valorLíquido > 0) %>%
+  summarise(countOccorrences = n(), soma_gastos = sum(valorLíquido)) %>% na.omit()
+
+ggplot(groupUsoCEAP, aes(x = reorder(sgPartido, soma_gastos), y = soma_gastos, fill = -soma_gastos)) + 
+  geom_col(position = position_identity()) + coord_flip() + xlab("Partido") + ylab("Soma dos gastos realizados no exterior") + labs(fill = "Total dos Gastos") 
+
+ggplot(groupUsoCEAP, aes(x = reorder(sgPartido, countOccorrences), y = countOccorrences, fill = -countOccorrences)) + 
+  geom_col(position = position_identity()) + coord_flip() + xlab("Partido") + ylab("Soma dos gastos realizados no exterior") + labs(fill = "Total dos Gastos")
+
+```
+
+A partir do gráfico, tem-se que o PMDB é o partido que mais gasta verba da CEAP, ultrapassando mais de 4 milhões de reais em gastos, valor muito superior aos pouco mais de 1.4 milhão R$ do PR, segundo partido que mais gasta. PROS e PSC são os partidos que por outro lado menos gastam, com pouco mais de 4.5 mil reais e 118 mil reais, respectivamente.
+No segundo gráfico, o PMDB se mostra como partido que mais utiliza o CEAP no estado da Paraíba, com quase 4000 utilizações. PP e SD ocupam a segunda e terceira colocação, respectivamente. Por outro lado, o PROS é o partido na Paraíba que menos utiliza a CEAP.
+
+## 4 Pergunta: Quais os deputados que mais ultrapassam o limite de CEAP do seu estado?
+
+A partir dos dados referentes ao limite CEAP de cada estado, realizo uma junção com os dados já disponíveis de modo a facilitar a comparação entre os valores. Após somar os gastos realizados por cada deputado, faço um filtro de modo a manter apenas aqueles deputados que superarar o limite mensal da CEAP. Por fim, obtenho apenas os 10 deputados que mais ultrapassaram este teto.
+
+```{r questaoQuatro, message=FALSE, warning=FALSE, paged.print=FALSE}
+dadosLimiteCEAP <- read_csv("limiteMensalCEAP.csv")
+colnames(dadosLimiteCEAP)[colnames(dadosLimiteCEAP) == 'UF'] <- 'sgUF'
+
+dados <- inner_join(dados, dadosLimiteCEAP, "sgUF")
+
+deputadosExcederamLimite <- dados %>% 
+  group_by(sgUF, nomeParlamentar, limite_mensal) %>%
+  summarise(soma_gastos = sum(valorLíquido)) %>% 
+  filter(soma_gastos > limite_mensal) %>%
+  ungroup() %>%
+  arrange(desc(soma_gastos)) %>% na.omit() %>% slice(1:10)
+
+ggplot(deputadosExcederamLimite, aes(x = reorder(nomeParlamentar, soma_gastos), y = soma_gastos, fill = -soma_gastos)) + 
+  geom_col(position = position_identity()) + coord_flip() + xlab("Parlamentares") 
+  
+```
+
+Com o gráfico tem-se que o deputado **Édio Lopes** foi quem mais superou o limite CEAP do seu estado, seguido por **Hiran Golçalves**, **Jhonatan de Jesus** e **Vinicius Gurgel**.
+
+
+### 5 Pergunta: Quais estados cujos parlamentares gastam mais com passagens aéreas?
+
+```{r questaoCinco}
+groupPassagens <-
+  dados %>% filter(tipoDespesa == "Emissão Bilhete Aéreo") %>%
+  group_by(sgUF) %>%
+  summarise(soma_gastos = sum(valorLíquido, na.rm = TRUE)) %>%
+  ungroup() %>%
+  arrange(desc(soma_gastos))
+
+ggplot(groupPassagens, aes(x = reorder(sgUF, soma_gastos), y = soma_gastos, fill = -soma_gastos)) + 
+  geom_col(position = position_identity()) + coord_flip() + ylab("Soma dos gastos") + xlab("Unidade Federativa")+ labs(fill = "Total dos Gastos") 
+```
+
+Agrupando os dados por Unidade Federativa e somando apenas os gastos com passagens aéreas, tem-se que **São Paulo** é o estado cujos parlamentares mais gastam com este tipo de despesa. **Minas Gerais** e **Rio de Janeiro** completam o top 3. O **Distrito Federal** e **Goiânia** são as Unidades Federativas que menos gastam com este tipo de despesa.
+
+
+### 6 Pergunta Extra: Quais são os tipos de gastos mais comuns em cada região?
+
+```{r questaoCinco}
+regiaoSul <- c("PR", "RS", "SC")
+regiaoSudeste <- c("SP", "RJ", "ES", "MG")
+regiaoNordeste <- c("CE", "AL", "SE" , "RN", "PE", "PB", "BA", "MA", "PI")
+
+groupSul <- 
+  dados %>%
+  filter(sgUF %in% regiaoSul) %>% 
+  group_by(tipoDespesa) %>% 
+  summarise(soma_gastos = n()) %>%
+  arrange(desc(soma_gastos)) 
+
+groupSudeste <- 
+  dados %>%
+  filter(sgUF %in% regiaoSudeste) %>% 
+  group_by(tipoDespesa) %>% 
+  summarise(soma_gastos = n()) %>%
+  arrange(desc(soma_gastos))
+
+groupNordeste <- 
+  dados %>%
+  filter(sgUF %in% regiaoNordeste) %>% 
+  group_by(tipoDespesa) %>% 
+  summarise(soma_gastos = n()) %>%
+  arrange(desc(soma_gastos))
+
+ggplot(groupNordeste, aes(x = reorder(tipoDespesa, soma_gastos), y = soma_gastos, fill = -soma_gastos)) + 
+  geom_col(position = position_identity())+ coord_flip()+ ylab("Soma dos gastos") + xlab("Tipo despesa")+ theme(axis.text.x = element_text(angle = 90, hjust = 1))+ labs(fill = "Total dos Gastos") 
+ggplot(groupSul, aes(x = reorder(tipoDespesa, soma_gastos), y = soma_gastos, fill = -soma_gastos)) + 
+  geom_col(position = position_identity())+ coord_flip()+ ylab("Soma dos gastos") + xlab("Tipo despesa")+ theme(axis.text.x = element_text(angle = 90, hjust = 1))+ labs(fill = "Total dos Gastos")
+
+```

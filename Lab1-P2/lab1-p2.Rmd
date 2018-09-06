@@ -1,0 +1,107 @@
+---
+title: "Lab 1: Análise de Gastos de Deputados: Suas Perguntas"
+author: "Diego Takei"
+date: "6 de setembro de 2018"
+output: html_document
+---
+
+Inicialmente iremos carregar os dados e bibliotecas a serem utilizados nesta análise.
+```{r init, message=FALSE, warning=FALSE, paged.print=FALSE}
+library(tidyverse)
+library(plotly)
+dados <- read.csv("dadosCEAP.csv", encoding = "UTF-8")
+```
+
+###Quais são os tipos de gastos mais comuns pelos parlamentares de cada região?
+
+Com essa pergunta busco averiguar se existe alguma relação entre o estado onde um deputado se elegeu e seus gastos mais frequentes. Desta forma, agrupei os deputados por região, uma vez que seria inviável realizar a visualização estado a estado.
+Inicialmente, mapeio as siglas de todos os estados agrupando-as por regiões. Em seguida, realizo a soma das linhas referentes a cada uso da CEAP, agrupando pelo tipo de despesa e reuno apenas os 10 mais usados.
+
+```{r questaoCinco, message=FALSE, warning=FALSE, paged.print=FALSE}
+regiaoSul <- c("PR", "RS", "SC")
+regiaoSudeste <- c("SP", "RJ", "ES", "MG")
+regiaoNordeste <- c("CE", "AL", "SE" , "RN", "PE", "PB", "BA", "MA", "PI")
+regiaoNorte <- c("AM","PA","RO","RR","TO","AC","AP")
+regiaoCentroOeste <- c("MT","MS","GO","DF")
+
+groupSul <- 
+  dados %>%
+  filter(sgUF %in% regiaoSul) %>% group_by(tipoDespesa) %>% summarise(soma_gastos = n()) %>% arrange(desc(soma_gastos))   %>% slice(1:10)
+
+groupSudeste <- 
+  dados %>% filter(sgUF %in% regiaoSudeste) %>% group_by(tipoDespesa) %>% summarise(soma_gastos = n()) %>%
+  arrange(desc(soma_gastos)) %>% slice(1:10)
+
+groupNordeste <- 
+  dados %>% filter(sgUF %in% regiaoNordeste) %>% group_by(tipoDespesa) %>% summarise(soma_gastos = n()) %>%
+  arrange(desc(soma_gastos)) %>% slice(1:10)
+
+groupNorte <- 
+  dados %>% filter(sgUF %in% regiaoNorte) %>% group_by(tipoDespesa) %>% summarise(soma_gastos = n()) %>%
+  arrange(desc(soma_gastos)) %>% slice(1:10)
+
+groupCentroOeste <- 
+  dados %>% filter(sgUF %in% regiaoCentroOeste) %>% group_by(tipoDespesa) %>% summarise(soma_gastos = n()) %>%
+  arrange(desc(soma_gastos)) %>% slice(1:10)
+
+```
+
+
+```{r graficos, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+plot_ly(groupSudeste, y =~ soma_gastos, x =~ reorder(tipoDespesa, soma_gastos)) %>%
+        layout(title = "Tipos de gastos mais comuns dos parlamentares da região Sudeste", yaxis = list(title = "Número de ocorrências"), xaxis = list(title= ""))
+```
+Na região Sudeste, a emissão de bilhetes aéreos é claramente a despesa mais utilizada. De fato, ao observar o top 3 desta região (emissão de bilhetes aéreos, combustíveis, serviços de táxi) há uma clara necessidade dos parlamentares de locomoção, onde estes três tipos de despesa ocupam mais da metade dos usos da CEAP realizados por estes parlamentares.
+
+A emissão de bilhetes aéreos se encontrar em primeiro com uma diferença tão grande se torna ainda mais significatvo, pois esta análise leva em consideração apenas a quantidade de usos e não o valor em reais, demostrando a alta frequência de uso desta despesa.
+
+
+```{r graficoSul, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+plot_ly(groupSul, y =~ soma_gastos, x =~ reorder(tipoDespesa, soma_gastos)) %>%
+        layout(title = "Tipos de gastos mais comuns dos parlamentares da região Sul", yaxis = list(title = "Número de ocorrências"), xaxis = list(title= ""))
+```
+Na região Sul, a emissão de bilhetes aéreos ainda permanece líder na utilizações, e o top 3 é composto pelos mesmos tipos de despesas da região Sudeste. Entretanto, houve um aumento significativo do tipo "Combustíveis e lubrificantes" se comparado a região Sudeste, se aproximando dos usos em bilhetes aéreos.
+
+Um ponto interessante a se destacar da região Sul é o significativo uso da CEAP para o tipo de despesa "Fornecimento de alimentação do parlamentar", que é superior aos usos de serviços postais e telefonia (em comparação à região Sudeste). Este seria um indício de que os parlamentares do sul preferem se alimentar a se comunicar? É um ponto a se refletir.
+```{r graficoCentro, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+
+plot_ly(groupCentroOeste, y =~ soma_gastos, x =~ reorder(tipoDespesa, soma_gastos)) %>%
+        layout(title = "Tipos de gastos mais comuns dos parlamentares da região Centro Oeste", yaxis = list(title = "Número de ocorrências"), xaxis = list(title= ""))
+
+
+```
+A região Centro-Oeste é a única região cujo tipo de despesa mais utilizado não é a emissão de bilhetes aéreos. Aqui, são os gastos com combustíveis que se destacam, que pode ser justificado por Brasília se localizar nesta região. Desta forma, os parlamentares estariam mais próximos dos seus estados e pela distância, não seria necessário uma viagem de avião, sendo uma viagem de carro mais utilizada.
+
+Os outros tipos de despesa são semelhantes às demais regiões, com exceção do tipo "Manutenção de escritório de apoio à atividade parlamentar" que está em quarto lugar. Novamente, isto pode ser explicado pelo fato da próximidade dos estados em que os parlamentares foram eleitos e Brasília, implicando que os mesmos passam mais tempo em seu escritório em Brasília do que parlamentares de outras regiões.
+
+```{r graficoNorteNordeste, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+
+plot_ly(groupNordeste, y =~ soma_gastos, x =~ reorder(tipoDespesa, soma_gastos)) %>%
+        layout(title = "Tipos de gastos mais comuns dos parlamentares da região Nordeste", yaxis = list(title = "Número de ocorrências"), xaxis = list(title= ""))
+
+
+plot_ly(groupNorte, y =~ soma_gastos, x =~ reorder(tipoDespesa, soma_gastos)) %>%
+        layout(title = "Tipos de gastos mais comuns dos parlamentares da região Norte", yaxis = list(title = "Número de ocorrências"), xaxis = list(title= ""))
+```
+
+As regiões Norte e Nordeste geraram gráficos semelhantes. A emissão de bilhetes aéreos e combustíveis são as despesas mais utilizadas, mantendo o padrão das outras regiões. Porém, a utilização da CEAP para serviços de taxi ocupa apenas a nona posição em ambas regiões (no Sudeste este tipo de despesa ocupa a terceira colocação), enquanto que serviços de telefonia estão em terceiro lugar.
+
+Como pudemos ver ao analisar todos os gráficos, a emissão de bilhetes aéreos é o tipo de despesa que a CEAP é mais utilizada, superando por muito outros tipo de despesa. Isso serve de gatilho para a próxima pergunta, que tem por objetivo verificar se alguma companhia aérea está se beneficiando mais da CEAP do que as demais.
+
+### Quais são as companhias aéreas que mais lucram com a CEAP?
+
+
+```{r companhia, message=FALSE, warning=FALSE, paged.print=FALSE}
+groupCompanhia <- 
+  dados %>%
+  filter(tipoDespesa == "Emissão Bilhete Aéreo") %>%
+  group_by(fornecedor) %>% summarise(soma_gastos = sum(valorLíquido)) %>%
+  arrange(desc(soma_gastos))
+
+plot_ly(groupCompanhia, y =~ soma_gastos, x =~ reorder(fornecedor, soma_gastos)) %>%
+        layout(title = "Lucro por companhia aérea através da CEAP", yaxis = list(title = "Valor em reais"), xaxis = list(title= "Companhias Aéreas"))
+```
+
+Como podemos observar pelo gráfico, apenas cinco companhias aéreas são utizadas pelos parlamentares. É importante salientar que este gráfico foi gerado apenas com os dados do tipo "Emissão Bilhete Aéreo", que vale para viagens nacionais. Existe um tipo de despesa denominado "Passagens Aéreas" que não utilizei por possuir tipo 2, para despesas no exterior, que estava ocasionado divergências nos dados, pois algumas companhias estavam sendo descritas com nomes um pouco diferentes, afetando a soma dos gastos. Um exemplo, a companhia TAM, que era representada por: "TAM LINHAS AÉREAS S.A.", "TAM", "Cia Aérea - TAM", entre outros.
+
+Das cinco companhias que são utilizadas nacionalmente, a TAM é a mais utilizada, tendo arrecadado mais de 17 milhões de reais a mais do que a Gol, segunda colocada. Azul e Aviana possuem uma arrecadação significativa, mas bastante longe da TAM e da Gol. A prefêrencia por estas companhias podem ser explicadas pela maior gama de destinos, tendo mais opções e cobrindo praticamente todos os aeroportos brasileiros. Ainda assim, é um dado extremamente significativo o fato de apenas Gol e TAM lucrarem juntas quase 100 milhões de reais apenas através de parlamentares, um verdadeiro absurdo.
