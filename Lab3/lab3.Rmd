@@ -1,0 +1,103 @@
+---
+title: "Predição de Votação de Deputados"
+author: "Diego Takei"
+date: "4 de novembro de 2018"
+output: html_document
+---
+
+```{r, include=FALSE}
+library(tidyverse)
+library(caret)
+library(ggplot2)
+```
+Inicialmente, obtenho os dados de teste e treino, filtrando as variáveis de pouca importância (categóricas) dos dados de treino.
+```{r}
+dadosIniciais <- read.csv("train.csv")
+teste <- read.csv("test.csv") %>% 
+  mutate(comites = recursos_de_outros_candidatos.comites)
+dadosFiltrados <- dadosIniciais %>% 
+  mutate(comites = recursos_de_outros_candidatos.comites) %>% 
+  select(-sequencial_candidato, -uf, -partido, - estado_civil, -ano, -recursos_de_outros_candidatos.comites)
+```
+### Questão 1: Usando todas as variáveis disponíveis, tune (usando validação cruzada): (i) um modelo de regressão Ridge, (ii) um modelo de regressão Lasso e (iii) um modelo KNN.
+#### 1) Modelo Ridge
+```{r cars}
+lambdas <- expand.grid(lambda = seq(10^-2, 10^-11, length=20))
+crossValidation <- trainControl(method = "cv", number = 10)
+
+ridgeModel <- train(votos ~ media_despesa + total_despesa + quantidade_fornecedores + quantidade_despesas + recursos_de_partido_politico + recursos_proprios + recursos_de_pessoas_juridicas + recursos_de_pessoas_fisicas + comites + media_receita + total_receita + quantidade_doadores + quantidade_doacoes, data = dadosFiltrados, 
+     method = "ridge",tuneGrid = lambdas, preProc = c("center", "scale"),trControl = crossValidation)
+
+plot(ridgeModel)
+
+ridgeModel
+```
+
+####2- Modelo Lasso
+```{r}
+lambdas <- expand.grid(fraction = seq(0.01, 10^-8, length=20))
+lassoModel <- train(votos ~ media_despesa + total_despesa + quantidade_fornecedores + quantidade_despesas + recursos_de_partido_politico + recursos_proprios + recursos_de_pessoas_juridicas + recursos_de_pessoas_fisicas + comites + media_receita + total_receita + quantidade_doadores + quantidade_doacoes, data = dadosFiltrados, 
+                 method = "lasso", 
+                 tuneGrid = lambdas,
+                 preProc = c("center", "scale"),
+                 trControl = crossValidation)
+
+plot(lassoModel)
+
+lassoModel
+```
+
+### 3) Modelo KNN
+```{r knn}
+k <- expand.grid(k = seq(20, 100, length=81))
+
+knnModel <- train(votos ~ media_despesa + total_despesa + quantidade_fornecedores + quantidade_despesas + recursos_de_partido_politico + recursos_proprios + recursos_de_pessoas_juridicas + recursos_de_pessoas_fisicas + comites + media_receita + total_receita + quantidade_doadores + quantidade_doacoes,
+                     data = dadosFiltrados,
+                     method = "knn",
+                     trControl = crossValidation,
+                     preProcess = c("center","scale"),
+                     tuneGrid = k)
+
+plot(knnModel)
+
+knnModel
+```
+### Questão 2: Compare os três modelos em termos do erro RMSE de validação cruzada.
+A partir da questão 1, pode-se afimar que o modelo KNN possui o menor valor de RMSE, seguido pelo modelo Lasso e por fim o modelo Ridge.
+
+### Questão 3: Quais as variáveis mais importantes segundo o modelo de regressão Ridge e Lasso?  Variáveis foram descartadas pelo Lasso? Quais?
+Para o modelo Ridge as variáveis mais importantes foram as seguintes:
+```{r}
+ggplot(varImp(ridgeModel))
+```
+
+Enquanto para o modelo Lasso:
+```{r}
+ggplot(varImp(lassoModel))
+```
+
+No modelo Lasso, várias variáveis foram descartadas, apenas  recursos_de_pessoas_fisicas, recursos_de_pessoas_juridicas e total_despesa permaneceram no modelo.
+
+### Questão 4: Re-treine o melhor modelo (usando os melhores valores de parâmetros encontrados em todos os dados, sem usar validação cruzada)
+Nesta questão utilizarei o modelo KNN, pois entre os modelos testados, este mostrou os melhores valores para RMSE.
+```{r}
+bestVariables <- predictors(lassoModel)
+adapData <- dadosFiltrados %>% 
+  select(bestVariables, votos)
+bestKnn <- train(votos ~ .,
+                     data = adapData,
+                     method = "knn",
+                     trControl = crossValidation,
+                     preProcess = c("center","scale"),
+                     tuneGrid = k)
+
+
+plot(bestKnn)
+bestKnn
+```
+```{r}
+predict <- predict(bestKnn, teste)
+result <- data.frame(ID= teste$sequencial_candidato, votos= predict)
+result$ID <- as.character(result$ID)
+result %>% write_csv(path = "resultout.csv")
+```

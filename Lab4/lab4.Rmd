@@ -1,0 +1,144 @@
+---
+title: "Lab4 - Predição de Eleição de Deputados"
+author: "Diego Takei"
+date: "1 de dezembro de 2018"
+output:
+  html_document:
+      df_print: paged
+      toc: yes
+      toc_float: yes
+  html_notebook:
+      toc: yes
+      toc_float: yes
+---
+
+```{r, include=FALSE}
+library(tidyverse)
+library(caret)
+library(ggplot2)
+```
+
+Leitura dos dados:
+```{r}
+dadosIniciais <- read.csv("train.csv", encoding = "UTF-8")
+teste <- read.csv("test.csv", encoding = "UTF-8")
+result <- read.csv("resultout.csv", encoding = "UTF-8")
+
+```
+
+Aqui realizo a definição dos métodos de tunning. Deixei três formas diferentes, pois obtive resultados diferentes com cada um nos testes que fiz.
+```{r, trainControl}
+crossValidation <- trainControl(method = "cv", number = 5)
+cctrl1 <- trainControl(method = "cv", number = 3, returnResamp = "all")
+ctrl <- trainControl(method = "repeatedcv", 
+                     number = 3, 
+                     repeats = 10, 
+                     verboseIter = FALSE)
+```
+
+### 1) Há desbalanceamento das classes (isto é, uma classe tem muito mais instâncias que outra)? Em que proporção? Quais efeitos colaterais o desbalanceamento de classes pode causar no classificador? Como você poderia tratar isso? (10 pt.)
+
+Inicialmente executo um comando para verificar as ocorrências da variável "situacao", que é a variável fundamental para o modelo.
+
+```{r q1}
+dadosIniciais %>%
+  ggplot(aes(situacao)) +
+  geom_bar() +
+  labs(x="Situação", y="Ocorrências")
+```
+
+Como é possível observar, existe um desbalanceamento entre as duas classes presentes, uma vez que 'não_eleito' possui muito mais ocorrências que 'eleito'. Um desbalanceamento desta forma pode prejudicar o classificador, pois o mesmo pode obter um viés para classificar as classes para 'nao_eleito' devido a possuir mais ocorrências.
+Uma forma de tratar isto é balanceando as classes, o pacote caret fornece modelos para balanceamento na etapa de treino, como down-sampling. Outra forma interessante é adicionar ocorrências da variável 'eleito' de modo a obter uma melhor proporção dos dados.
+
+### 2) Treine: um modelo de KNN, regressão logística, uma árvore de decisão e um modelo de adaboost. Tune esses modelos usando validação cruzada e controle overfitting se necessário, considerando as particularidades de cada modelo.  (20 pts.)
+
+Na etapa de treinamento, consegui melhores resultados retirando as variáveis (cargo, nome, ocupacao, partido, estado_civil, grau) do modelo (algumas também possuiam zero variância). Apenas no modelo KNN aperfeicoei os paramêtros do modelo. Nos demais, os parâmetros default geraram bons resultados.
+
+Modelo KNN:
+```{r knn}
+knnModel <- train (situacao ~ .,
+                 data = dadosIniciais %>% select(-cargo, -nome, -ocupacao, -partido, -estado_civil, -grau), 
+                 method = "knn",
+                 preProc = c("center", "scale"),
+                 trControl = cctrl1,
+                 tuneGrid = expand.grid(k = seq(20, 100, length=81)))
+
+plot(knnModel)
+
+knnModel
+```
+
+Modelo de Regressão Logística:
+```{r logistic}
+logisticModel <- train (situacao ~ .,
+                 data = dadosIniciais %>% select(-cargo, -nome, -ocupacao, -partido, -estado_civil, -grau), 
+                 method = "regLogistic",
+                 preProc = c("center", "scale"),
+                 trControl = cctrl1)
+
+plot(logisticModel)
+
+logisticModel
+```
+
+Modelo de Árvore de Decisão:
+```{r decisionTree}
+dtModel <- train (situacao ~ .,
+                 data = dadosIniciais %>% select(-cargo, -nome, -ocupacao, -partido, -estado_civil, -grau), 
+                 method = "rpart2",
+                 preProc = c("center", "scale"),
+                 trControl = cctrl1)
+
+plot(dtModel)
+
+dtModel
+```
+
+Modelo de Boosting:
+```{r boosting}
+adaModel <- train (situacao ~ .,
+                 data = dadosIniciais %>% select(-cargo, -nome, -ocupacao, -partido, -estado_civil, -grau), 
+                 method = "adaboost",
+                 preProc = c("center", "scale"),
+                 trControl = cctrl1)
+
+plot(adaModel)
+
+adaModel
+```
+
+### 3) Reporte precision, recall e f-measure no treino e validação. Há uma grande diferença de desempenho no treino/validação? Como você avalia os resultados? Justifique sua resposta.
+
+### 4) Interprete as saídas dos modelos. Quais atributos parecem ser mais importantes de acordo com cada modelo?
+
+A partir dos modelos, nota-se que os atributos "total_despesa" e "total_receita" são as variáveis mais importantes para o modelo, seguindo a têndencia vista no lab passado, onde os candidatos com mais dinheiro gasto conseguiram mais votos tanto na eleição de 2006 quanto de 2010.
+
+### 5) Envie seus melhores modelos à competição do Kaggle. Faça pelo menos uma submissão. Sugestões para melhorar o modelo:
+
+Realizei o teste em vários modelos e consegui o melhor resultado com o Multilayer Perceptron (MLP), utilizando repeated cross validation. Também obtive bom resultado utilizando eXtreme Gradient Boosting.
+```{r mlp}
+mlpModel <- train (situacao ~ .,
+                 data = dadosIniciais %>% select(-cargo, -nome, -ocupacao, -partido, -estado_civil, -grau), 
+                 method = "mlp",
+                 preProc = c("center", "scale"),
+                 trControl = ctrl,
+                 tuneGrid = expand.grid(size = 5))
+mlpModel
+```
+
+```{r XGB}
+xgModel <- train (situacao ~ .,
+                 data = dadosIniciais %>% select(-cargo, -nome, -ocupacao, -partido, -estado_civil, -grau), 
+                 method = "xgbDART",
+                 preProc = c("center", "scale"),
+                 trControl = cctrl1)
+
+plot(xgModel)
+```
+
+```{r}
+predict <- predict(mlpModel, teste)
+result <- data.frame(ID= teste$sequencial_candidato, Predicted= predict)
+result$ID <- as.character(result$ID)
+result %>% write_csv(path = "resultout.csv")
+```
